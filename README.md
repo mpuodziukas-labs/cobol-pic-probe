@@ -1,5 +1,7 @@
 # COBOL PIC V9(7)V99 Truncation Probe
 
+![CI](https://github.com/mpuodziukas-labs/cobol-pic-probe/actions/workflows/ci.yml/badge.svg)
+
 **Synthetic demonstration of a COBOL fixed-point truncation failure class.
 No real or client data is used anywhere in this repository.**
 
@@ -123,6 +125,14 @@ exact PIC declarations that produce the failure class.
 The purpose of this artifact is to demonstrate *methodology* — the ability
 to instrument arithmetic boundaries deterministically — not to make claims
 about any production system.
+
+---
+
+## Limitations
+
+- Inputs are synthetic, deterministic formulas — not real or client data.
+- The Python model reproduces one COBOL PIC/COMP-3 truncation failure class, not the full COBOL arithmetic spec.
+- This is a methodology demonstration, not a turnkey audit tool for arbitrary codebases.
 
 ---
 
