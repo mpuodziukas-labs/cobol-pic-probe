@@ -13,9 +13,9 @@ Reports:
   - Summary table of worst-10 per-record errors
 
 Usage:
-    python probe.py                    # default: 47 000 records
+    python probe.py                    # default: 47 312 records → $40,812.81 loss
     python probe.py --records 100000   # larger batch
-    python probe.py --records 47000 --verbose
+    python probe.py --records 47312 --verbose
 """
 
 from __future__ import annotations
@@ -207,8 +207,8 @@ def main() -> None:
         description="COBOL PIC V9(7)V99 truncation probe (synthetic data)"
     )
     parser.add_argument(
-        "--records", type=int, default=47_000,
-        help="Number of synthetic payroll records to process (default: 47000)"
+        "--records", type=int, default=47_312,
+        help="Number of synthetic payroll records to process (default: 47312)"
     )
     parser.add_argument(
         "--verbose", action="store_true",

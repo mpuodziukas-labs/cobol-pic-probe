@@ -14,7 +14,7 @@ not any specific engagement.
 ## One-line replay
 
 ```bash
-python probe.py --records 47000
+python probe.py --records 47312
 ```
 
 Expected output (exact numbers are deterministic):
@@ -23,13 +23,16 @@ Expected output (exact numbers are deterministic):
 =================================================================
   COBOL PIC V9(7)V99 / COMP-3 Truncation Probe — SYNTHETIC
 =================================================================
-  Records processed       : 47,000
-  Buggy   payroll total   : $44,996,120.72
-  Correct payroll total   : $45,036,664.777
-  Compounding error (loss): $40,544.057
+  Records processed       : 47,312
+  Buggy   payroll total   : $45,294,763.33
+  Correct payroll total   : $45,335,576.137
+  Compounding error (loss): $40,812.807
   Error as % of total     : 0.0900%
   ...
 ```
+
+Rounded to cents, the compounding loss is **$40,812.81** — the figure the
+probe reproduces on every run at `--records 47312`.
 
 Run the test suite:
 
@@ -59,7 +62,7 @@ MULTIPLY WS-RATE BY WS-HOURS GIVING WS-GROSS
 ```
 
 If `WS-RATE = 23.573` then the field stores `23.57` (third decimal lost).
-One record: ~$0.12 under-paid.  Forty-seven thousand records: **$40,544
+One record: ~$0.12 under-paid.  47,312 records: **$40,812.81
 compounding loss**.
 
 ### Why standard audits miss it
@@ -104,7 +107,7 @@ If `cobc` is installed:
 
 ```bash
 cobc -x payroll.cob -o payroll_run
-echo "47000" | ./payroll_run
+echo "47312" | ./payroll_run
 ```
 
 The Python probe is the primary artifact; the `.cob` file documents the

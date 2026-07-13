@@ -18,7 +18,7 @@
       *> Compile (GnuCOBOL):
       *>   cobc -x payroll.cob -o payroll_run
       *> Run:
-      *>   echo "47000" | ./payroll_run
+      *>   echo "47312" | ./payroll_run
       *> ============================================================
        IDENTIFICATION DIVISION.
        PROGRAM-ID. PAYROLL-PROBE.
