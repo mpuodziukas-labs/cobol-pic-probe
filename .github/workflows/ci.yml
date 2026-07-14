@@ -28,8 +28,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest
 
-      - name: Run probe smoke-test (47 000 records)
-        run: python probe.py --records 47000
+      - name: Run probe smoke-test (47 312 records)
+        run: python probe.py --records 47312
 
       - name: Run pytest suite
         run: python -m pytest tests/ -v --tb=short
