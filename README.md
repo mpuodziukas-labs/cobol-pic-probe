@@ -28,6 +28,9 @@ cobc -x payroll.cob -o payroll_run
 echo 47312 | ./payroll_run
 ```
 
+Without `cobc`, skip this step: the probe is pure Python and unaffected, and the
+test that compares it with the COBOL program is skipped, not failed.
+
 Both the probe and the COBOL program print the same totals for the same record
 count, from 1 up to 999,998. The COBOL record counter is `PIC 9(6)` and its loop
 never ends at 999,999, so the probe refuses counts above 999,998.

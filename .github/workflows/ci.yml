@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: pytest — COBOL PIC truncation probe
+    name: pytest - COBOL PIC truncation probe
     runs-on: ubuntu-latest
 
     strategy:

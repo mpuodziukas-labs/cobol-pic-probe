@@ -1,6 +1,6 @@
 """
 tests/test_pic_truncation.py
-SYNTHETIC DEMONSTRATION — No real or client data.
+SYNTHETIC DEMONSTRATION - No real or client data.
 
 Tests that:
 1. PicDecimal truncates (not rounds) exactly as COBOL does.
@@ -132,7 +132,8 @@ class TestCompoundingError:
     """The error must compound to a substantial, reproducible total."""
 
     @pytest.fixture(scope="class")
-    def results(self):
+    @classmethod
+    def results(cls):
         return run_probe(47_000)
 
     def test_record_count(self, results):
@@ -158,7 +159,7 @@ class TestCompoundingError:
     def test_compounding_error_matches_probe_output(self, results):
         """
         Verified probe output: Compounding error = $40,544.057
-        This is the core assertion — the bug produces ~$40.5K loss on 47 000 records.
+        This is the core assertion - the bug produces ~$40.5K loss on 47 000 records.
         """
         expected = Decimal("40544.057")
         diff = abs(results["cumulative_error"] - expected)
@@ -178,7 +179,7 @@ class TestCompoundingError:
 
     def test_error_exceeds_ten_thousand_dollars(self, results):
         """
-        The compounding loss must exceed $10,000 on 47 000 records —
+        The compounding loss must exceed $10,000 on 47 000 records -
         a threshold that proves the failure is material, not rounding noise.
         """
         assert results["cumulative_error"] > Decimal("10000"), (
@@ -187,7 +188,7 @@ class TestCompoundingError:
 
     def test_error_rate_below_one_percent(self, results):
         """
-        The error must be <1% of total payroll — small enough to hide in
+        The error must be <1% of total payroll - small enough to hide in
         standard reconciliation but large enough to matter forensically.
         """
         error_pct = results["cumulative_error"] / results["cumulative_correct"] * 100
@@ -272,8 +273,9 @@ class TestCanonicalReproduction:
     CANONICAL_RECORDS = 47_312
 
     @pytest.fixture(scope="class")
-    def results(self):
-        return run_probe(self.CANONICAL_RECORDS)
+    @classmethod
+    def results(cls):
+        return run_probe(cls.CANONICAL_RECORDS)
 
     def test_default_record_count_is_canonical(self):
         """probe.py's default --records must be the canonical 47,312."""
@@ -291,7 +293,7 @@ class TestCanonicalReproduction:
         """
         The published figure is $40,812.81. The probe emits $40,812.807 at
         full precision, which rounds to exactly $40,812.81. This is the number
-        the portfolio cites — a fresh clone must reproduce it.
+        the portfolio cites - a fresh clone must reproduce it.
         """
         from decimal import ROUND_HALF_UP
         loss = results["cumulative_error"]

@@ -1,5 +1,5 @@
       *> ============================================================
-      *> payroll.cob — SYNTHETIC DEMONSTRATION ONLY
+      *> payroll.cob - SYNTHETIC DEMONSTRATION ONLY
       *>
       *> Demonstrates the PIC V9(7)V99 / COMP-3 truncation failure
       *> class that silent-accumulates rounding errors over large
