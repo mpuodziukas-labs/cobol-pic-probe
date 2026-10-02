@@ -161,7 +161,7 @@ def print_report(results: dict) -> None:
 
     print()
     print("=" * 65)
-    print("  COBOL PIC V9(7)V99 / COMP-3 Truncation Probe — SYNTHETIC")
+    print("  COBOL PIC V9(7)V99 / COMP-3 Truncation Probe - SYNTHETIC")
     print("=" * 65)
     print(f"  Records processed       : {n:,}")
     print(f"  Buggy   payroll total   : ${cb:,.2f}")

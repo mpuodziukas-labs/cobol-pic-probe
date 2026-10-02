@@ -5,40 +5,50 @@
 **Synthetic demonstration of a COBOL fixed-point truncation failure class.
 No real or client data is used anywhere in this repository.**
 
-This repo backs the candidate's *deterministic-replay forensics* methodology
-with a verifiable, runnable artifact.  It demonstrates the failure class —
-not any specific engagement.
+## Business problem
 
----
+A payroll batch can reconcile to the cent against its own ledger and still be
+short, because every record silently drops sub-cent digits before it is summed.
+This probe replays the same arithmetic at higher precision, field by field, and
+shows the loss before employees are underpaid or a regulator asks.
 
-## One-line replay
+## Run it in 60 seconds
 
 ```bash
-python probe.py --records 47312
+pip install pytest
+python3 -m pytest -q
+python3 probe.py --records 47312
+python3 probe.py --records 5 --verbose
 ```
 
-Expected output (exact numbers are deterministic):
+Optional, if GnuCOBOL (`cobc`) is installed, run the COBOL source itself:
+
+```bash
+cobc -x payroll.cob -o payroll_run
+echo 47312 | ./payroll_run
+```
+
+Both the probe and the COBOL program print the same totals for the same record
+count.
+
+## Expected output
+
+`python3 probe.py --records 47312` prints (numbers are deterministic):
 
 ```
 =================================================================
-  COBOL PIC V9(7)V99 / COMP-3 Truncation Probe — SYNTHETIC
+  COBOL PIC V9(7)V99 / COMP-3 Truncation Probe - SYNTHETIC
 =================================================================
   Records processed       : 47,312
   Buggy   payroll total   : $45,294,763.33
   Correct payroll total   : $45,335,576.137
   Compounding error (loss): $40,812.807
   Error as % of total     : 0.0900%
-  ...
 ```
 
-Rounded to cents, the compounding loss is **$40,812.81** — the figure the
-probe reproduces on every run at `--records 47312`.
-
-Run the test suite:
-
-```bash
-python -m pytest tests/ -v
-```
+Rounded to cents, the compounding loss is **$40,812.81**, the figure the
+probe reproduces on every run at `--records 47312`. The report continues with the
+first truncated record and the ten worst single-record errors.
 
 ---
 
@@ -47,9 +57,9 @@ python -m pytest tests/ -v
 ### The COBOL arithmetic failure class
 
 In COBOL, a numeric field declared `PIC 9(4)V99 COMP-3` stores **exactly 2
-decimal digits**.  When two such fields are multiplied the intermediate
-product may have 3 or more decimal places.  Without a `ROUNDED` or `ON SIZE
-ERROR` clause COBOL **silently truncates** the excess digits — it does not
+decimal digits**. When two such fields are multiplied the intermediate
+product may have 3 or more decimal places. Without a `ROUNDED` or `ON SIZE
+ERROR` clause COBOL **silently truncates** the excess digits. It does not
 round.
 
 ```cobol
@@ -61,25 +71,26 @@ MULTIPLY WS-RATE BY WS-HOURS GIVING WS-GROSS
 *> intermediate has 3 decimal digits; the 3rd is silently dropped
 ```
 
-If `WS-RATE = 23.573` then the field stores `23.57` (third decimal lost).
-One record: ~$0.12 under-paid.  47,312 records: **$40,812.81
-compounding loss**.
+The probe's synthetic record 1 has rate `23.573` and hours `40.30`. The narrow
+fields drop the third decimal of the rate, and that record comes out
+$0.121 short (see the `--verbose` command above). Over 47,312 records the
+shortfall compounds to the **$40,812.81** shown above.
 
-### Why standard audits miss it
+### Why a total-only reconciliation misses it
 
-Standard reconciliation checks:
+A check such as:
 
 ```
 sum(gross_pay) == sum(payroll_debits)
 ```
 
-Both sides of this equation use the *same* 2-decimal truncated values.
-The discrepancy exists only at the sub-cent boundary inside the
-multiplication — invisible to any check that rounds before summing.
+passes when both sides use the same truncated values. The discrepancy exists
+only at the sub-cent boundary inside the multiplication, so a check that
+compares truncated totals cannot see it.
 
-Deterministic-replay forensics re-runs the computation with instrumented
-higher-precision fields (`PIC 9(4)V999`) and compares field-by-field at
-each record boundary.  The failure surfaces immediately.
+Replaying the computation with wider fields (`PIC 9(4)V999`) and comparing
+field by field at each record boundary exposes the difference. That is what
+`probe.py` does.
 
 ---
 
@@ -87,58 +98,46 @@ each record boundary.  The failure surfaces immediately.
 
 ```
 .
-├── payroll.cob           # Annotated COBOL source (compilable with GnuCOBOL)
-├── cobol_semantics.py    # Faithful Python model of COBOL PIC arithmetic
-├── probe.py              # Detector: runs N records, reports error + boundary
-├── tests/
-│   └── test_pic_truncation.py  # 31 pytest assertions (bug exists, probe detects it)
-├── .github/
-│   └── workflows/
-│       └── ci.yml        # GitHub Actions: pytest on push
-├── README.md
-└── LICENSE               # MIT
+  payroll.cob           Annotated COBOL source (compiles with GnuCOBOL)
+  cobol_semantics.py    Python model of truncating COBOL PIC arithmetic
+  probe.py              Runs N records, reports error + first truncation
+  tests/
+    test_pic_truncation.py   pytest tests (bug exists, probe detects it)
+  .github/workflows/ci.yml   GitHub Actions: probe + pytest on push
+  README.md
+  LICENSE               MIT
 ```
 
 ---
 
-## Running with GnuCOBOL (optional)
+## Honesty Statement
 
-If `cobc` is installed:
+| Question | Answer |
+|----------|--------|
+| Uses real payroll data? | **No.** Every input is a deterministic formula in `probe.py` (and the same formulas in `payroll.cob`). |
+| References a specific employer or client? | **No.** |
+| Results reproducible? | **Yes.** No randomness and no clock; the commands above print the same numbers every time. |
+| Does CI run the COBOL source? | **No.** CI runs the Python probe and pytest. The COBOL-versus-Python comparison test runs only where `cobc` is installed and is skipped elsewhere. |
 
-```bash
-cobc -x payroll.cob -o payroll_run
-echo "47312" | ./payroll_run
-```
-
-The Python probe is the primary artifact; the `.cob` file documents the
-exact PIC declarations that produce the failure class.
-
----
-
-## Honest framing
-
-| Claim | Status |
-|-------|--------|
-| Uses real payroll data | **No** — all inputs are synthetic deterministic formulas |
-| References any specific employer or client | **No** |
-| Demonstrates a real COBOL failure class | **Yes** — documented in COBOL standards |
-| Results are reproducible | **Yes** — fixed seed, no randomness |
-| Tests pass in CI | **Yes** — green badge above |
-
-The purpose of this artifact is to demonstrate *methodology* — the ability
-to instrument arithmetic boundaries deterministically — not to make claims
-about any production system.
+The purpose is to demonstrate a *methodology* (instrumenting arithmetic
+boundaries deterministically), not to make claims about any production system.
 
 ---
 
 ## Limitations
 
-- Inputs are synthetic, deterministic formulas — not real or client data.
-- The Python model reproduces one COBOL PIC/COMP-3 truncation failure class, not the full COBOL arithmetic spec.
-- This is a methodology demonstration, not a turnkey audit tool for arbitrary codebases.
+- Inputs are synthetic formulas, not real or client data. The dollar amounts
+  describe this synthetic batch only.
+- The Python model reproduces one COBOL PIC/COMP-3 truncation failure class,
+  not the full COBOL arithmetic specification.
+- Behavior of other compilers, `ROUNDED`, `ON SIZE ERROR` and binary (`COMP`)
+  fields is not modeled or tested here.
+- The COBOL file was checked against the Python probe with GnuCOBOL only.
+- This is a methodology demonstration, not a turnkey audit tool for arbitrary
+  codebases.
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

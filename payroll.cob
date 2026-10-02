@@ -60,13 +60,13 @@
                UNTIL WS-RECORD-INDEX > WS-EMPLOYEE-COUNT
 
       *>         Synthetic deterministic inputs:
-      *>         rate   = 23.57 + (index mod 100) * 0.03   -> 3 sig decimals
+      *>         rate   = 23.57 + (index mod 100) * 0.003   -> 3 decimals
       *>         hours  = 40.25 + (index mod 7) * 0.05     -> 2 sig decimals
       *>         The 3rd decimal in the intermediate product gets truncated
       *>         by the buggy PIC definition.
 
                COMPUTE WS-RATE-BUGGY =
-                   23.57 + FUNCTION MOD(WS-RECORD-INDEX, 100) * 0.03
+                   23.57 + FUNCTION MOD(WS-RECORD-INDEX, 100) * 0.003
                COMPUTE WS-HOURS-BUGGY =
                    40.25 + FUNCTION MOD(WS-RECORD-INDEX, 7) * 0.05
 
@@ -78,7 +78,7 @@
 
       *>         CORRECT: higher-precision fields retain third decimal
                COMPUTE WS-RATE-CORRECT =
-                   23.57 + FUNCTION MOD(WS-RECORD-INDEX, 100) * 0.03
+                   23.57 + FUNCTION MOD(WS-RECORD-INDEX, 100) * 0.003
                COMPUTE WS-HOURS-CORRECT =
                    40.25 + FUNCTION MOD(WS-RECORD-INDEX, 7) * 0.05
 

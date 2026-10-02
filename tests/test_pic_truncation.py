@@ -304,3 +304,29 @@ class TestCanonicalReproduction:
         """Full-precision loss must be $40,812.807 (±$0.01)."""
         expected = Decimal("40812.807")
         assert abs(results["cumulative_error"] - expected) <= Decimal("0.01")
+
+
+# ---------------------------------------------------------------------------
+# 6. The COBOL source and the Python model agree (needs GnuCOBOL, else skipped)
+# ---------------------------------------------------------------------------
+
+import shutil
+import subprocess
+
+
+@pytest.mark.skipif(shutil.which("cobc") is None, reason="GnuCOBOL (cobc) not installed")
+def test_cobol_source_matches_python_probe(tmp_path):
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    exe = tmp_path / "payroll_run"
+    subprocess.run(
+        ["cobc", "-x", os.path.join(root, "payroll.cob"), "-o", str(exe)],
+        check=True,
+        capture_output=True,
+    )
+    out = subprocess.run(
+        [str(exe)], input="1000\n", capture_output=True, text=True, check=True
+    ).stdout
+    res = run_probe(1000)
+    assert f"{res['cumulative_buggy']:,.2f}" in out
+    assert f"{res['cumulative_correct']:,.3f}" in out
+    assert f"{res['cumulative_error']:,.3f}" in out
