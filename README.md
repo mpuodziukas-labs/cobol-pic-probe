@@ -29,7 +29,8 @@ echo 47312 | ./payroll_run
 ```
 
 Both the probe and the COBOL program print the same totals for the same record
-count.
+count, from 1 up to 999,998. The COBOL record counter is `PIC 9(6)` and its loop
+never ends at 999,999, so the probe refuses counts above 999,998.
 
 ## Expected output
 
@@ -103,6 +104,7 @@ field by field at each record boundary exposes the difference. That is what
   probe.py              Runs N records, reports error + first truncation
   tests/
     test_pic_truncation.py   pytest tests (bug exists, probe detects it)
+    test_redteam.py          attack cases, README drift checks, COBOL agreement
   .github/workflows/ci.yml   GitHub Actions: probe + pytest on push
   README.md
   LICENSE               MIT
@@ -130,6 +132,9 @@ boundaries deterministically), not to make claims about any production system.
   describe this synthetic batch only.
 - The Python model reproduces one COBOL PIC/COMP-3 truncation failure class,
   not the full COBOL arithmetic specification.
+- The model drops high-order digits on overflow and keeps the absolute value in
+  an unsigned field, as GnuCOBOL does. The COBOL standard leaves overflow
+  without `ON SIZE ERROR` undefined, so other compilers may differ.
 - Behavior of other compilers, `ROUNDED`, `ON SIZE ERROR` and binary (`COMP`)
   fields is not modeled or tested here.
 - The COBOL file was checked against the Python probe with GnuCOBOL only.

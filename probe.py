@@ -1,6 +1,6 @@
 """
-probe.py — COBOL PIC V9(7)V99 / COMP-3 truncation probe
-SYNTHETIC DEMONSTRATION — No real or client data.
+probe.py - COBOL PIC V9(7)V99 / COMP-3 truncation probe
+SYNTHETIC DEMONSTRATION - No real or client data.
 
 Runs N deterministic synthetic payroll records through:
   - buggy COBOL-equivalent arithmetic  (PIC 9(4)V99  rate, PIC 9(3)V9  hours)
@@ -13,7 +13,7 @@ Reports:
   - Summary table of worst-10 per-record errors
 
 Usage:
-    python probe.py                    # default: 47 312 records → $40,812.81 loss
+    python probe.py                    # default: 47 312 records -> $40,812.81 loss
     python probe.py --records 100000   # larger batch
     python probe.py --records 47312 --verbose
 """
@@ -37,16 +37,16 @@ from cobol_semantics import PicDecimal
 
 class PayrollRecord(NamedTuple):
     index: int
-    rate_str: str    # e.g. "23.573"  — 3 decimal places (the "hidden" digit)
-    hours_str: str   # e.g. "40.350"  — 2 decimal places
+    rate_str: str    # e.g. "23.573"  - 3 decimal places (the "hidden" digit)
+    hours_str: str   # e.g. "40.350"  - 2 decimal places
 
 
 def generate_records(n: int) -> Iterator[PayrollRecord]:
     """
     Deterministic synthetic payroll records.
 
-    rate  = 23.57 + (index % 100) * 0.003    →  range [23.570 … 23.867], 3 dp
-    hours = 40.25 + (index %   7) * 0.05     →  range [40.250 … 40.550], 2 dp
+    rate  = 23.57 + (index % 100) * 0.003    ->  range [23.570 ... 23.867], 3 dp
+    hours = 40.25 + (index %   7) * 0.05     ->  range [40.250 ... 40.550], 2 dp
 
     The third decimal of `rate` is what PIC 9(4)V99 silently drops.
     When multiplied by hours the dropped digit compounds.
@@ -77,13 +77,13 @@ class RecordResult(NamedTuple):
 def probe_record(rec: PayrollRecord) -> RecordResult:
     """Compute both arithmetic paths for one record."""
 
-    # --- Buggy path: PIC 9(4)V99 × PIC 9(3)V9 → PIC 9(7)V99 ---
+    # --- Buggy path: PIC 9(4)V99 x PIC 9(3)V9 -> PIC 9(7)V99 ---
     rate_b  = PicDecimal(rec.rate_str,  int_digits=4, frac_digits=2)   # drops 3rd dp
     hours_b = PicDecimal(rec.hours_str, int_digits=3, frac_digits=1)   # drops 2nd dp
     gross_b = PicDecimal("0",           int_digits=7, frac_digits=2)
     gross_b.assign(rate_b * hours_b)
 
-    # --- Correct path: PIC 9(4)V999 × PIC 9(3)V99 → PIC 9(7)V999 ---
+    # --- Correct path: PIC 9(4)V999 x PIC 9(3)V99 -> PIC 9(7)V999 ---
     rate_c  = PicDecimal(rec.rate_str,  int_digits=4, frac_digits=3)
     hours_c = PicDecimal(rec.hours_str, int_digits=3, frac_digits=2)
     gross_c = PicDecimal("0",           int_digits=7, frac_digits=3)
@@ -100,12 +100,22 @@ def probe_record(rec: PayrollRecord) -> RecordResult:
     )
 
 
+# payroll.cob counts records in PIC 9(6) and its loop never ends at 999999
+# (the index wraps to 0), so the probe stops one short of that.
+MAX_RECORDS = 999_998
+
+
 def run_probe(n_records: int, verbose: bool = False) -> dict:
     """
     Run the full probe over n_records synthetic records.
 
     Returns a results dict with all key metrics.
+    Raises ValueError unless 1 <= n_records <= MAX_RECORDS.
     """
+    if isinstance(n_records, bool) or not isinstance(n_records, int):
+        raise TypeError("n_records must be an int")
+    if not 1 <= n_records <= MAX_RECORDS:
+        raise ValueError(f"--records must be between 1 and {MAX_RECORDS:,}")
     cumulative_buggy   = Decimal("0")
     cumulative_correct = Decimal("0")
     first_error_record = None
@@ -132,7 +142,7 @@ def run_probe(n_records: int, verbose: bool = False) -> dict:
                 f"rate={rec.rate_str}  hours={rec.hours_str}  "
                 f"buggy={result.gross_buggy:.2f}  "
                 f"correct={result.gross_correct:.3f}  "
-                f"Δ={result.error:.4f}"
+                f"delta={result.error:.4f}"
             )
 
     cumulative_error = cumulative_correct - cumulative_buggy
@@ -174,7 +184,7 @@ def print_report(results: dict) -> None:
         print(f"  First truncation at record #{fe.index}")
         print(f"    rate={fe.rate_str}  hours={fe.hours_str}")
         print(f"    buggy={fe.gross_buggy:.2f}  correct={fe.gross_correct:.3f}  "
-              f"Δ={fe.error:.4f}")
+              f"delta={fe.error:.4f}")
     print()
 
     print("  Top-10 worst single-record errors:")
@@ -189,12 +199,12 @@ def print_report(results: dict) -> None:
         )
     print()
     print("  WHY STANDARD AUDITS MISS THIS:")
-    print("  Audits verify that sum(gross) == sum(debit_entries) — they check")
+    print("  Audits verify that sum(gross) == sum(debit_entries) - they check")
     print("  totals.  The buggy and correct totals differ only in sub-cent")
     print("  precision per record.  The loss is invisible in any reconciliation")
     print("  that rounds to 2 dp before summing.  Deterministic-replay forensics")
     print("  re-runs the computation with instrumented precision and compares")
-    print("  field-by-field at each record boundary — surfacing the failure class.")
+    print("  field-by-field at each record boundary - surfacing the failure class.")
     print("=" * 65)
 
 
@@ -216,11 +226,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.records < 1:
-        print("ERROR: --records must be >= 1", file=sys.stderr)
+    try:
+        results = run_probe(args.records, verbose=args.verbose)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
-
-    results = run_probe(args.records, verbose=args.verbose)
     print_report(results)
 
 
