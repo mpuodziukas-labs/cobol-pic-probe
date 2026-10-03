@@ -1,5 +1,7 @@
 # COBOL PIC V9(7)V99 Truncation Probe
 
+Proves: legacy COBOL numeric correctness testing and modernization evals. Verify in 60s: `python3 probe.py --records 47312`.
+
 ![CI](https://github.com/mpuodziukas-labs/cobol-pic-probe/actions/workflows/ci.yml/badge.svg)
 
 **Synthetic demonstration of a COBOL fixed-point truncation failure class.
