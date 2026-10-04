@@ -79,8 +79,8 @@ def test_no_negative_zero():
 
 
 def test_huge_value_does_not_crash():
-    p = PicDecimal(10 ** 60 + 5, int_digits=70, frac_digits=2)
-    assert p.value == Decimal(f"{10 ** 60 + 5}.00")
+    p = PicDecimal(10 ** 30 + 5, int_digits=36, frac_digits=2)
+    assert p.value == Decimal(f"{10 ** 30 + 5}.00")
     assert p.value.as_tuple().exponent == -2
 
 
@@ -91,8 +91,8 @@ def test_assign_accepts_int_and_float():
 
 
 def test_sum_of_wide_fields_is_not_rounded():
-    a = PicDecimal("1" + "0" * 29, int_digits=40, frac_digits=0)
-    b = PicDecimal("1", int_digits=40, frac_digits=0)
+    a = PicDecimal("1" + "0" * 29, int_digits=38, frac_digits=0)
+    b = PicDecimal("1", int_digits=38, frac_digits=0)
     assert a + b == Decimal("1" + "0" * 28 + "1")
 
 
@@ -169,7 +169,5 @@ def test_cobol_agrees_at_boundaries(tmp_path_factory, n):
                    check=True, capture_output=True)
     out = subprocess.run([str(exe)], input=f"{n}\n", capture_output=True,
                          text=True, check=True, timeout=60).stdout
-    res = run_probe(n)
-    assert f"{res['cumulative_buggy']:,.2f}" in out
-    assert f"{res['cumulative_correct']:,.3f}" in out
-    assert f"{res['cumulative_error']:,.3f}" in out
+    from tests.test_hostile import assert_cobol_agrees
+    assert_cobol_agrees(out, n)

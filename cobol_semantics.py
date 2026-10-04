@@ -3,17 +3,14 @@ cobol_semantics.py - Faithful Python model of COBOL fixed-point PIC arithmetic
 
 SYNTHETIC DEMONSTRATION - No real or client data.
 
-Models two COBOL concepts that cause silent payroll errors:
+Models one COBOL concept that causes silent payroll errors:
 
-1.  PIC V9(n) truncation (not rounding):
+    PIC 9(7)V99 style truncation (not rounding):
     COBOL MULTIPLY with a result field narrower than the intermediate
     product silently truncates the excess fractional digits.  There is
-    no "rounding" by default; the low-order bits vanish.
-
-2.  COMP-3 (packed-decimal) representation:
-    Each decimal digit occupies 4 bits.  PIC 9(4)V99 COMP-3 stores
-    exactly 6 decimal digits, so a 3-decimal intermediate is clipped
-    to 2 decimals on assignment to a PIC 9(7)V99 field.
+    no "rounding" by default; the low-order digits vanish.  A field's
+    USAGE (DISPLAY or COMP-3) does not change this; storage
+    representation is not modeled (see README Limitations).
 
 This module exposes:
     PicDecimal(value, integer_digits, frac_digits) - a fixed-point type
@@ -27,6 +24,9 @@ from __future__ import annotations
 import re
 from decimal import Decimal, ROUND_DOWN, localcontext
 
+
+# COBOL numeric items hold at most 38 digits (ISO 2002 limit; GnuCOBOL's maximum).
+MAX_DIGITS = 38
 
 _LITERAL = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)")
 
@@ -75,9 +75,14 @@ class PicDecimal:
         for name, n in (("int_digits", int_digits), ("frac_digits", frac_digits)):
             if isinstance(n, bool) or not isinstance(n, int) or n < 0:
                 raise ValueError(f"{name} must be an int >= 0, got {n!r}")
+        if not 1 <= int_digits + frac_digits <= MAX_DIGITS:
+            raise ValueError(
+                f"a PIC needs 1 to {MAX_DIGITS} digits, got {int_digits + frac_digits}")
+        if type(signed) is not bool:
+            raise ValueError(f"signed must be a bool, got {signed!r}")
         self._int_d = int_digits
         self._frac_d = frac_digits
-        self._signed = bool(signed)
+        self._signed = signed
         self._quantize_mask = Decimal(10) ** -frac_digits
         self._value = self._truncate(_coerce(value))
 
@@ -159,24 +164,16 @@ if __name__ == "__main__":
     hours_buggy   = PicDecimal("40.350", int_digits=3, frac_digits=1)  # PIC 9(3)V9
     gross_buggy   = PicDecimal("0",      int_digits=7, frac_digits=2)  # PIC 9(7)V99
 
-    rate_correct  = PicDecimal("23.573", int_digits=4, frac_digits=3)  # PIC 9(4)V999
-    hours_correct = PicDecimal("40.350", int_digits=3, frac_digits=2)  # PIC 9(3)V99
-    gross_correct = PicDecimal("0",      int_digits=7, frac_digits=3)  # PIC 9(7)V999
-
     # MULTIPLY WS-RATE BY WS-HOURS GIVING WS-GROSS
     intermediate = rate_buggy * hours_buggy
     gross_buggy.assign(intermediate)
 
-    intermediate_c = rate_correct * hours_correct
-    gross_correct.assign(intermediate_c)
-
+    exact = Decimal("23.573") * Decimal("40.350")
     print(f"  Rate input           : 23.573")
     print(f"  Hours input          : 40.350")
-    print(f"  Intermediate product : {rate_buggy.value * hours_buggy.value:.6f}")
+    print(f"  Exact product        : {exact}")
     print(f"  Buggy  gross (2 dp)  : {gross_buggy.value}")
-    print(f"  Correct gross (3 dp) : {gross_correct.value}")
-    print(f"  Single-record loss   : {gross_correct.value - gross_buggy.value:.6f}")
+    print(f"  Single-record loss   : {exact - gross_buggy.value}")
     print()
-    print("Over 47 000 records the loss compounds to hundreds of dollars.")
-    print("Standard audits check totals; they don't instrument intermediate")
-    print("precision boundaries - so this class is routinely missed.")
+    print("For the batch total and its attribution by field, run:")
+    print("    python3 probe.py --attribute")

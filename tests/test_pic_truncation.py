@@ -108,11 +108,11 @@ class TestSingleRecordBug:
 
     def test_error_matches_first_record_probe_output(self):
         """
-        The per-record error on record #1 must match the value observed
-        in verified probe output: Δ=0.1210
+        The per-record error on record #1 is the exact product minus the
+        buggy gross: 949.99190 - 949.87 = 0.12190
         """
-        assert self.result.error == Decimal("0.1210"), (
-            f"Expected 0.1210, got {self.result.error}"
+        assert self.result.error == Decimal("0.12190"), (
+            f"Expected 0.12190, got {self.result.error}"
         )
 
     def test_buggy_gross_matches_probe_output(self):
@@ -120,8 +120,9 @@ class TestSingleRecordBug:
         assert self.result.gross_buggy == Decimal("949.87")
 
     def test_correct_gross_matches_probe_output(self):
-        """Record #1 correct gross must equal the probe's confirmed value: 949.991"""
-        assert self.result.gross_correct == Decimal("949.991")
+        """Record #1 exact gross is 23.573 * 40.30 = 949.99190"""
+        assert self.result.gross_correct == Decimal("23.573") * Decimal("40.30")
+        assert self.result.gross_correct == Decimal("949.99190")
 
 
 # ---------------------------------------------------------------------------
@@ -151,17 +152,16 @@ class TestCompoundingError:
         )
 
     def test_correct_total_matches_probe_output(self, results):
-        """Verified probe output: Correct total = $45,036,664.777"""
-        expected = Decimal("45036664.777")
-        diff = abs(results["cumulative_correct"] - expected)
-        assert diff <= Decimal("0.01")
+        """Exact total over 47,000 records = $45,036,684.24950"""
+        expected = Decimal("45036684.24950")
+        assert results["cumulative_correct"] == expected
 
     def test_compounding_error_matches_probe_output(self, results):
         """
-        Verified probe output: Compounding error = $40,544.057
-        This is the core assertion - the bug produces ~$40.5K loss on 47 000 records.
+        Exact total minus buggy total = $40,563.52950
+        This is the core assertion - the bug produces ~$40.6K loss on 47 000 records.
         """
-        expected = Decimal("40544.057")
+        expected = Decimal("40563.52950")
         diff = abs(results["cumulative_error"] - expected)
         assert diff <= Decimal("0.01"), (
             f"Compounding error {results['cumulative_error']} not within $0.01 "
@@ -263,12 +263,12 @@ class TestBoundaryConditions:
 
 
 # ---------------------------------------------------------------------------
-# 8. Canonical reproduction: --records 47312 → $40,812.81
+# 8. Canonical reproduction: --records 47312 -> $40,832.41
 #    A naive `git clone && pytest` must reproduce the published figure.
 # ---------------------------------------------------------------------------
 
 class TestCanonicalReproduction:
-    """The default run (47,312 records) reproduces the published $40,812.81 loss."""
+    """The default run (47,312 records) reproduces the published $40,832.41 loss."""
 
     CANONICAL_RECORDS = 47_312
 
@@ -291,20 +291,20 @@ class TestCanonicalReproduction:
 
     def test_reproduces_published_loss_to_the_cent(self, results):
         """
-        The published figure is $40,812.81. The probe emits $40,812.807 at
-        full precision, which rounds to exactly $40,812.81. This is the number
-        the portfolio cites - a fresh clone must reproduce it.
+        The published figure is $40,832.41. The probe emits $40,832.40790 at
+        full precision, which rounds to exactly $40,832.41. A fresh clone
+        must reproduce it.
         """
         from decimal import ROUND_HALF_UP
         loss = results["cumulative_error"]
         rounded = loss.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        assert rounded == Decimal("40812.81"), (
-            f"Canonical loss {loss} rounds to {rounded}, expected $40,812.81"
+        assert rounded == Decimal("40832.41"), (
+            f"Canonical loss {loss} rounds to {rounded}, expected $40,832.41"
         )
 
     def test_full_precision_loss_matches(self, results):
-        """Full-precision loss must be $40,812.807 (±$0.01)."""
-        expected = Decimal("40812.807")
+        """Full-precision loss must be $40,832.40790 (±$0.01)."""
+        expected = Decimal("40832.40790")
         assert abs(results["cumulative_error"] - expected) <= Decimal("0.01")
 
 
@@ -328,7 +328,5 @@ def test_cobol_source_matches_python_probe(tmp_path):
     out = subprocess.run(
         [str(exe)], input="1000\n", capture_output=True, text=True, check=True
     ).stdout
-    res = run_probe(1000)
-    assert f"{res['cumulative_buggy']:,.2f}" in out
-    assert f"{res['cumulative_correct']:,.3f}" in out
-    assert f"{res['cumulative_error']:,.3f}" in out
+    from tests.test_hostile import assert_cobol_agrees
+    assert_cobol_agrees(out, 1000)

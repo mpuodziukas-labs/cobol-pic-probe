@@ -1,10 +1,10 @@
 """
-probe.py - COBOL PIC V9(7)V99 / COMP-3 truncation probe
+probe.py - COBOL PIC 9(7)V99 fixed-point truncation probe
 SYNTHETIC DEMONSTRATION - No real or client data.
 
 Runs N deterministic synthetic payroll records through:
   - buggy COBOL-equivalent arithmetic  (PIC 9(4)V99  rate, PIC 9(3)V9  hours)
-  - correct reference arithmetic       (PIC 9(4)V999 rate, PIC 9(3)V99 hours)
+  - exact reference arithmetic         (unbounded Decimal, no truncation)
 
 Reports:
   - Per-record truncation (first record where the error appears)
@@ -13,7 +13,8 @@ Reports:
   - Summary table of worst-10 per-record errors
 
 Usage:
-    python probe.py                    # default: 47 312 records -> $40,812.81 loss
+    python probe.py                    # default: 47 312 records
+    python probe.py --attribute        # loss broken down by source field
     python probe.py --records 100000   # larger batch
     python probe.py --records 47312 --verbose
 """
@@ -71,7 +72,7 @@ class RecordResult(NamedTuple):
     hours_str: str
     gross_buggy: Decimal
     gross_correct: Decimal
-    error: Decimal          # correct - buggy  (always >= 0 for truncation)
+    error: Decimal          # exact - buggy  (always >= 0 for truncation)
 
 
 def probe_record(rec: PayrollRecord) -> RecordResult:
@@ -83,19 +84,16 @@ def probe_record(rec: PayrollRecord) -> RecordResult:
     gross_b = PicDecimal("0",           int_digits=7, frac_digits=2)
     gross_b.assign(rate_b * hours_b)
 
-    # --- Correct path: PIC 9(4)V999 x PIC 9(3)V99 -> PIC 9(7)V999 ---
-    rate_c  = PicDecimal(rec.rate_str,  int_digits=4, frac_digits=3)
-    hours_c = PicDecimal(rec.hours_str, int_digits=3, frac_digits=2)
-    gross_c = PicDecimal("0",           int_digits=7, frac_digits=3)
-    gross_c.assign(rate_c * hours_c)
+    # --- Exact path: unbounded Decimal, nothing is truncated ---
+    gross_c = Decimal(rec.rate_str) * Decimal(rec.hours_str)
 
-    error = gross_c.value - gross_b.value
+    error = gross_c - gross_b.value
     return RecordResult(
         index=rec.index,
         rate_str=rec.rate_str,
         hours_str=rec.hours_str,
         gross_buggy=gross_b.value,
-        gross_correct=gross_c.value,
+        gross_correct=gross_c,
         error=error,
     )
 
@@ -103,6 +101,61 @@ def probe_record(rec: PayrollRecord) -> RecordResult:
 # payroll.cob counts records in PIC 9(6) and its loop never ends at 999999
 # (the index wraps to 0), so the probe stops one short of that.
 MAX_RECORDS = 999_998
+
+
+class Attribution(NamedTuple):
+    n_records: int
+    exact: Decimal
+    buggy: Decimal
+    hours_field: Decimal     # step 1: PIC 9(3)V9 drops the 2nd hours decimal
+    rate_field: Decimal      # step 2: PIC 9(4)V99 drops the 3rd rate decimal
+    multiply: Decimal        # step 3: GIVING PIC 9(7)V99 drops the product's extra decimals
+    worst_index: int
+    worst_error: Decimal
+
+    @property
+    def loss(self) -> Decimal:
+        return self.exact - self.buggy
+
+
+def attribute(n_records: int) -> Attribution:
+    """Split the total loss by source. The three steps are applied in order
+    (hours, rate, product) and sum exactly to exact - buggy."""
+    run_probe(n_records)  # same validation as the probe
+    exact = buggy = s_hours = s_rate = s_mul = Decimal("0")
+    worst_i, worst_e = 0, Decimal("-1")
+    for rec in generate_records(n_records):
+        a, b = Decimal(rec.rate_str), Decimal(rec.hours_str)
+        b1 = PicDecimal(rec.hours_str, int_digits=3, frac_digits=1).value
+        a1 = PicDecimal(rec.rate_str, int_digits=4, frac_digits=2).value
+        g = PicDecimal("0", int_digits=7, frac_digits=2).assign(a1 * b1).value
+        s_hours += a * b - a * b1
+        s_rate += a * b1 - a1 * b1
+        s_mul += a1 * b1 - g
+        exact += a * b
+        buggy += g
+        if a * b - g > worst_e:
+            worst_i, worst_e = rec.index, a * b - g
+    return Attribution(n_records, exact, buggy, s_hours, s_rate, s_mul, worst_i, worst_e)
+
+
+def print_attribution(at: Attribution) -> None:
+    loss = at.loss
+
+    def share(x: Decimal) -> str:
+        return f"{x / loss * 100:.2f}%"
+
+    print(f"  Loss attribution over {at.n_records:,} records - SYNTHETIC")
+    print(f"  Exact payroll total      : ${at.exact:,.5f}")
+    print(f"  Buggy payroll total      : ${at.buggy:,.2f}")
+    print(f"  Total loss               : ${loss:,.5f}")
+    print(f"  1. hours field PIC 9(3)V9 drops 2nd decimal : "
+          f"${at.hours_field:,.5f} ({share(at.hours_field)})")
+    print(f"  2. rate field PIC 9(4)V99 drops 3rd decimal : "
+          f"${at.rate_field:,.5f} ({share(at.rate_field)})")
+    print(f"  3. MULTIPLY GIVING PIC 9(7)V99 drops product decimals : "
+          f"${at.multiply:,.5f} ({share(at.multiply)})")
+    print(f"  Worst single-record loss : ${at.worst_error:,.5f} at record #{at.worst_index:,}")
 
 
 def run_probe(n_records: int, verbose: bool = False) -> dict:
@@ -141,7 +194,7 @@ def run_probe(n_records: int, verbose: bool = False) -> dict:
                 f"  rec {rec.index:6d}  "
                 f"rate={rec.rate_str}  hours={rec.hours_str}  "
                 f"buggy={result.gross_buggy:.2f}  "
-                f"correct={result.gross_correct:.3f}  "
+                f"exact={result.gross_correct:.5f}  "
                 f"delta={result.error:.4f}"
             )
 
@@ -171,40 +224,38 @@ def print_report(results: dict) -> None:
 
     print()
     print("=" * 65)
-    print("  COBOL PIC V9(7)V99 / COMP-3 Truncation Probe - SYNTHETIC")
+    print("  COBOL PIC 9(7)V99 Truncation Probe - SYNTHETIC")
     print("=" * 65)
     print(f"  Records processed       : {n:,}")
     print(f"  Buggy   payroll total   : ${cb:,.2f}")
-    print(f"  Correct payroll total   : ${cc:,.3f}")
-    print(f"  Compounding error (loss): ${ce:,.3f}")
+    print(f"  Exact   payroll total   : ${cc:,.5f}")
+    print(f"  Compounding error (loss): ${ce:,.5f}")
     print(f"  Error as % of total     : {(ce / cc * 100):.4f}%")
     print()
 
     if fe:
         print(f"  First truncation at record #{fe.index}")
         print(f"    rate={fe.rate_str}  hours={fe.hours_str}")
-        print(f"    buggy={fe.gross_buggy:.2f}  correct={fe.gross_correct:.3f}  "
+        print(f"    buggy={fe.gross_buggy:.2f}  exact={fe.gross_correct:.5f}  "
               f"delta={fe.error:.4f}")
     print()
 
     print("  Top-10 worst single-record errors:")
     print(f"  {'Rec':>8}  {'Rate':>9}  {'Hours':>7}  {'Buggy':>10}  "
-          f"{'Correct':>11}  {'Error':>8}")
+          f"{'Exact':>13}  {'Error':>8}")
     print("  " + "-" * 62)
     for r in sorted(we, key=lambda x: x.error, reverse=True):
         print(
             f"  {r.index:>8,}  {r.rate_str:>9}  {r.hours_str:>7}  "
-            f"{r.gross_buggy:>10.2f}  {r.gross_correct:>11.3f}  "
+            f"{r.gross_buggy:>10.2f}  {r.gross_correct:>13.5f}  "
             f"{r.error:>8.4f}"
         )
     print()
     print("  WHY STANDARD AUDITS MISS THIS:")
-    print("  Audits verify that sum(gross) == sum(debit_entries) - they check")
-    print("  totals.  The buggy and correct totals differ only in sub-cent")
-    print("  precision per record.  The loss is invisible in any reconciliation")
-    print("  that rounds to 2 dp before summing.  Deterministic-replay forensics")
-    print("  re-runs the computation with instrumented precision and compares")
-    print("  field-by-field at each record boundary - surfacing the failure class.")
+    print("  A reconciliation that sums the stored (truncated) fields agrees")
+    print("  with itself, so the dropped digits never show up in the totals.")
+    print("  Replaying the batch with exact arithmetic exposes the gap.")
+    print("  Run --attribute to see which field causes the loss.")
     print("=" * 65)
 
 
@@ -214,11 +265,15 @@ def print_report(results: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="COBOL PIC V9(7)V99 truncation probe (synthetic data)"
+        description="COBOL PIC 9(7)V99 truncation probe (synthetic data)"
     )
     parser.add_argument(
         "--records", type=int, default=47_312,
         help="Number of synthetic payroll records to process (default: 47312)"
+    )
+    parser.add_argument(
+        "--attribute", action="store_true",
+        help="Print the loss broken down by source (hours field, rate field, product)"
     )
     parser.add_argument(
         "--verbose", action="store_true",
@@ -226,6 +281,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if args.attribute:
+        try:
+            at = attribute(args.records)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            sys.exit(1)
+        print_attribution(at)
+        return
     try:
         results = run_probe(args.records, verbose=args.verbose)
     except ValueError as exc:
