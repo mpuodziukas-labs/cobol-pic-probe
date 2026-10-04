@@ -1,7 +1,7 @@
 import subprocess, pathlib
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SKIP = {"LICENSE", "build_corpus.py", "tests/test_stranger.py"}
-DASHES = ("—", "–")
+DASHES = ("\u2014", "\u2013")
 
 
 def test_no_em_or_en_dash_in_tracked_text():

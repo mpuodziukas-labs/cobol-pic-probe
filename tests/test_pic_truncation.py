@@ -66,7 +66,7 @@ class TestPicDecimalTruncation:
         rate  = PicDecimal("23.573", int_digits=4, frac_digits=3)
         hours = PicDecimal("40.350", int_digits=3, frac_digits=2)
         intermediate = rate * hours
-        # 23.573 × 40.350 = 950.9695 (full precision)
+        # 23.573 x 40.350 = 950.9695 (full precision)
         assert intermediate == Decimal("23.573") * Decimal("40.350")
 
     def test_three_dp_field_retains_third_decimal(self):
@@ -143,7 +143,7 @@ class TestCompoundingError:
     def test_buggy_total_matches_probe_output(self, results):
         """
         Verified probe output: Buggy total = $44,996,120.72
-        Allow ±$0.01 for any future platform Decimal precision edge case.
+        Allow +/-$0.01 for any future platform Decimal precision edge case.
         """
         expected = Decimal("44996120.72")
         diff = abs(results["cumulative_buggy"] - expected)
@@ -240,7 +240,7 @@ class TestBoundaryConditions:
         assert r["first_error"].index == 1
 
     def test_error_grows_with_record_count(self):
-        """More records → more compounding error (monotonic growth)."""
+        """More records -> more compounding error (monotonic growth)."""
         r_small = run_probe(100)
         r_large = run_probe(1_000)
         assert r_large["cumulative_error"] > r_small["cumulative_error"]
@@ -303,7 +303,7 @@ class TestCanonicalReproduction:
         )
 
     def test_full_precision_loss_matches(self, results):
-        """Full-precision loss must be $40,832.40790 (±$0.01)."""
+        """Full-precision loss must be $40,832.40790 (+/-$0.01)."""
         expected = Decimal("40832.40790")
         assert abs(results["cumulative_error"] - expected) <= Decimal("0.01")
 
