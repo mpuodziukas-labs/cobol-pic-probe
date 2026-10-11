@@ -202,3 +202,5 @@ the exact-total figure above, and `PicDecimal` now caps a PIC at 38 digits.
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+Agent verification contract: [AGENTS.md](AGENTS.md)

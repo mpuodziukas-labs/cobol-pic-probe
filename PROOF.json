@@ -1,0 +1,11 @@
+{
+  "expected_exit": 0,
+  "expected_line": "Compounding error (loss): $40,832.40790",
+  "limitations": "Inputs are synthetic and the dollar amounts describe this batch only. Models one PIC and COMP-3 truncation failure class, not the full COBOL arithmetic specification. Overflow behavior follows GnuCOBOL and other compilers may differ. ROUNDED, ON SIZE ERROR, binary fields and storage representation are not modeled.",
+  "outcome": "a replay that exposes silent numeric truncation in legacy COBOL-style payroll arithmetic by comparing against exact arithmetic",
+  "repo": "cobol-pic-probe",
+  "schema": "proof-pack/1",
+  "scope": "synthetic data, fixed seed, offline",
+  "site": "https://puodziukas.dev/proof.json",
+  "verify_cmd": "python3 probe.py --records 47312"
+}
