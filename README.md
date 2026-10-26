@@ -1,11 +1,70 @@
-# COBOL PIC 9(7)V99 Truncation Probe
+# cobol-pic-probe
 
 Proves: legacy COBOL numeric correctness testing and modernization evals. Verify in 60s: `python3 probe.py --records 47312`.
+
+Title of this README before it followed the repo README standard, kept as written:
+
+```text
+# COBOL PIC 9(7)V99 Truncation Probe
+```
 
 ![CI](https://github.com/mpuodziukas-labs/cobol-pic-probe/actions/workflows/ci.yml/badge.svg)
 
 **Synthetic demonstration of a COBOL fixed-point truncation failure class.
 No real or client data is used anywhere in this repository.**
+
+## Ticket
+
+| Field | Value |
+|---|---|
+| Ticket | cobol-pic-probe 2026-10-25 |
+| Status | LIVE |
+| Severity of a false pass | A fixed-point truncation loss in a legacy COBOL-style calculation is reported as absent or as the wrong amount because the probe printed its expected line, and a team relies on that result when it signs off a batch. |
+| Scope (in) | A replay of rate times hours over N synthetic records, once with COBOL PIC truncation and once with exact decimal arithmetic, with the loss split by field; the checks are exercised by the planted edits in mutants.py. |
+| Out of scope | Real or client data, other compilers, ROUNDED, ON SIZE ERROR, binary fields, storage representation (see Limitations). |
+| Owner | Michael Puodziukas, michael@puodziukas.dev |
+| Opened | 2026-06-12 |
+| Last verified | 2026-10-25, `mutants killed 17/17` |
+| Oracle | `python3 mutants.py`, last line `mutants killed 17/17`; no evaluate.py exists in this repo |
+| Dependencies | Runtime: Python 3 (probe.py and cobol_semantics.py). Test: pytest. Optional: GnuCOBOL (cobc) for the COBOL source. |
+| Supported platforms | macOS (mutants.py measured here, rc=0); Linux through the CI workflow in .github/workflows/ci.yml (not measured here). |
+
+## Quick start
+
+```bash
+python3 mutants.py
+python3 probe.py --records 47312
+```
+
+## Normal procedure
+
+1. From the repo root run `python3 mutants.py`. It copies the repo to a temporary directory, runs each named test file unmodified as a control, then applies each planted edit to `cobol_semantics.py` or `probe.py` and requires the matching test file to go red.
+2. Read the output. The first line reports the control run. Each `RED` line is a planted edit that a test caught. A `LIVE` line is a planted edit no test caught. The last line counts the edits caught.
+3. PASS means the control line reports every test file clean, no line starts with `LIVE`, and the last line shows the same number on both sides of the slash. The end of a passing run is quoted here:
+
+```text
+RED  attribute: the worst record is never tracked
+mutants killed 17/17
+```
+
+4. Run `python3 probe.py --records 47312` to see the probe itself. Its pass line is recorded in PROOF.json and was not re-run in this pass.
+
+## Abnormal procedure
+
+| Symptom | Cause | Action | Oracle |
+|---|---|---|---|
+| `mutants.py` prints a `LIVE` line | A planted edit that its test file does not detect, which is a gap in that test file | Add or tighten a test until that line prints `RED` | `python3 mutants.py` |
+| `mutants.py` prints `control FAIL` or `pattern matched` | The unmodified test file fails in the scratch copy (for example pytest is missing), or the source line a planted edit targets has moved | Install pytest, or update the pattern in `mutants.py` to the new source line | `python3 mutants.py` |
+| `probe.py` exits with code one | The record count is not an integer from 1 up to 999,998 | Pass a count inside that range | `python3 probe.py --records 47312` |
+| The COBOL comparison tests are reported as skipped | GnuCOBOL (cobc) is not installed on this machine; CI installs it and fails on a skip | Install GnuCOBOL, then compile the source | `cobc -x payroll.cob -o payroll_run` |
+
+## Emergency procedure
+
+The gate printed PASS but a truncation loss in a legacy COBOL-style calculation was missed or misreported.
+
+1. Freeze: stop relying on the probe result for that calculation, and record the repo commit, the record count and the field widths involved.
+2. Replay: run `python3 probe.py --records 5 --verbose` and `python3 probe.py --attribute` on the offending case. Reduce it to a failing test in `tests/test_hostile.py`, fix `cobol_semantics.py` or `probe.py`, and add a planted edit to `mutants.py`. Then run `python3 mutants.py` and expect the same number on both sides of the slash.
+3. Tell: the owner (michael@puodziukas.dev) and every team that used the result. Name the missing check and the blind spot in the Limitations section.
 
 ## Business problem
 
@@ -174,6 +233,8 @@ boundaries deterministically), not to make claims about any production system.
 - The COBOL file was checked against the Python probe with GnuCOBOL only.
 - This is a methodology demonstration, not a turnkey audit tool for arbitrary
   codebases.
+- No evaluate.py exists in this repo. The measured evidence below is the last line of `mutants.py` only.
+- The pytest suite and the probe were not run directly in this pass. `mutants.py` ran the two named test files inside its own scratch copies, and GnuCOBOL was not used.
 
 ---
 
@@ -196,6 +257,55 @@ the exact-total figure above, and `PicDecimal` now caps a PIC at 38 digits.
 - M4 COBOL accepted bad counts with rc 0; fixed, it validates and exits 1.
 - M5 `PicDecimal` accepted zero, over 38 digits and non-bool `signed`; fixed, all raise ValueError.
 - M6 demo said "hundreds of dollars"; fixed, the demo points to `--attribute`.
+
+---
+
+## Architecture
+
+| Path | Role | Lines |
+|---|---|---|
+| `probe.py` | Runs N records through the truncating model and the exact model, reports the loss and its split | 301 |
+| `cobol_semantics.py` | Python model of truncating COBOL numeric storage | 179 |
+| `payroll.cob` | The COBOL source that the probe is compared with | 133 |
+| `mutants.py` | Mutation check: edits copies of `probe.py` and `cobol_semantics.py` and requires the matching test file to go red | 71 |
+| `tests/test_pic_truncation.py` | Tests that the bug exists and the probe detects it | 332 |
+| `tests/test_redteam.py` | Attack cases, README drift checks, COBOL agreement | 173 |
+| `tests/test_hostile.py` | One test per hostile-review finding | 372 |
+| `tests/test_stranger.py` | Clean-clone checks | 38 |
+| `RED-RUN-REVIEW.txt` | Raw hostile-review findings | 21 |
+| `.github/workflows/ci.yml` | CI workflow | 48 |
+| `PROOF.json` | Machine-readable verify command and expected line | 11 |
+| `AGENTS.md` | Verification contract (path only) | 13 |
+
+Data flow:
+
+1. `probe.py` builds each synthetic record from a fixed formula.
+2. It stores each field through `cobol_semantics.py` (truncating) and also computes the exact product.
+3. It reports the compounded difference, the first truncated record and the loss split by field.
+4. `mutants.py` edits copies of the two Python files and requires the named test file to go red.
+
+## Test and mutation evidence
+
+Measured on 2026-10-25 on macOS by running `python3 mutants.py` from the repo root. It exited with code zero (rc=0). There is no evaluate.py in this repo, so there is no evaluate.py line to quote. Last line of `python3 mutants.py`:
+
+```text
+mutants killed 17/17
+```
+
+The same measured line, restated as a summary table:
+
+```text
+| oracle | last line measured |
+|---|---|
+| python3 mutants.py | mutants killed 17/17 |
+```
+
+## Change log
+
+| Date | Change | Oracle after |
+|---|---|---|
+| 2026-10-25 | Additive restructuring to the README standard: sections added, no old line dropped or reworded, the former title line kept verbatim inside a fenced block | `python3 mutants.py` last line `mutants killed 17/17` |
+| 2026-06-12 | First commit (date from the repo git log) | none: no oracle output was recorded for that commit |
 
 ---
 

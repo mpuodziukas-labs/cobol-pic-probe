@@ -129,13 +129,24 @@ class TestSingleRecordBug:
 # 3. Compounding: 47 000 record full run
 # ---------------------------------------------------------------------------
 
+# Module-scoped fixtures run each probe once. A class-scoped classmethod fixture needs Python 3.10+,
+# and stock macOS ships 3.9; a function-scoped alias per class keeps the tests' `results` name.
+@pytest.fixture(scope="module")
+def results_47000():
+    return run_probe(47_000)
+
+
+@pytest.fixture(scope="module")
+def results_canonical():
+    return run_probe(TestCanonicalReproduction.CANONICAL_RECORDS)
+
+
 class TestCompoundingError:
     """The error must compound to a substantial, reproducible total."""
 
-    @pytest.fixture(scope="class")
-    @classmethod
-    def results(cls):
-        return run_probe(47_000)
+    @pytest.fixture
+    def results(self, results_47000):
+        return results_47000
 
     def test_record_count(self, results):
         assert results["n_records"] == 47_000
@@ -272,10 +283,9 @@ class TestCanonicalReproduction:
 
     CANONICAL_RECORDS = 47_312
 
-    @pytest.fixture(scope="class")
-    @classmethod
-    def results(cls):
-        return run_probe(cls.CANONICAL_RECORDS)
+    @pytest.fixture
+    def results(self, results_canonical):
+        return results_canonical
 
     def test_default_record_count_is_canonical(self):
         """probe.py's default --records must be the canonical 47,312."""
