@@ -2,6 +2,8 @@
 
 Proves: legacy COBOL numeric correctness testing and modernization evals. Verify in 60s: `python3 probe.py --records 47312`.
 
+Where this fits: NIST SP 800-53 Rev. 5 family System and Information Integrity (family name only, no control text claimed). Sources in SOURCES.md.
+
 Title of this README before it followed the repo README standard, kept as written:
 
 ```text
